@@ -23,11 +23,17 @@ build_botan()
 	fi
 	# disable some larger modules we don't need for the tests
 	BOTAN_CONFIG="$BOTAN_CONFIG --disable-modules=pkcs11,tls,x509,xmss"
+	# with amalgamation, separate files for neon/armv8crypto code are created
+	# that contain target pragmas, however, these values are not actually valid.
+	# same for powercrypto, so we currently only use this for amd64
+	if test "$TRAVIS_CPU_ARCH" = "amd64"; then
+		BOTAN_CONFIG="$BOTAN_CONFIG --amalgamation"
+	fi
 
 	git clone https://github.com/randombit/botan.git $BOTAN_DIR &&
 	cd $BOTAN_DIR &&
 	git checkout -qf $BOTAN_REV &&
-	python ./configure.py --amalgamation $BOTAN_CONFIG &&
+	python ./configure.py $BOTAN_CONFIG &&
 	make -j4 libs >/dev/null &&
 	sudo make install >/dev/null &&
 	sudo ldconfig || exit $?
@@ -36,7 +42,7 @@ build_botan()
 
 build_wolfssl()
 {
-	WOLFSSL_REV=v4.3.0-stable
+	WOLFSSL_REV=87859f9e810b # v4.3.0-stable + IBM Z patch
 	WOLFSSL_DIR=$TRAVIS_BUILD_DIR/../wolfssl
 
 	if test -d "$WOLFSSL_DIR"; then
@@ -147,6 +153,9 @@ all|coverage|sonarcloud)
 			--disable-kernel-wfp --disable-kernel-iph --disable-winhttp"
 	# not enabled on the build server
 	CONFIG="$CONFIG --disable-af-alg"
+	if test "$TRAVIS_CPU_ARCH" != "amd64"; then
+		CONFIG="$CONFIG --disable-aesni --disable-rdrand"
+	fi
 	if test "$TEST" != "coverage"; then
 		CONFIG="$CONFIG --disable-coverage"
 	else
@@ -155,7 +164,7 @@ all|coverage|sonarcloud)
 	fi
 	DEPS="$DEPS libcurl4-gnutls-dev libsoup2.4-dev libunbound-dev libldns-dev
 		  libmysqlclient-dev libsqlite3-dev clearsilver-dev libfcgi-dev
-		  libpcsclite-dev libpam0g-dev binutils-dev libunwind8-dev libnm-dev
+		  libpcsclite-dev libpam0g-dev binutils-dev libnm-dev
 		  libjson-c-dev iptables-dev python-pip libtspi-dev libsystemd-dev"
 	PYDEPS="tox"
 	if test "$1" = "deps"; then
